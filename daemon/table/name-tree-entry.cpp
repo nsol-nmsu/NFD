@@ -60,6 +60,7 @@ Entry::isEmpty() const
   return m_children.empty() &&
          !static_cast<bool>(m_fibEntry) &&
          m_pitEntries.empty() &&
+         m_sitEntries.empty() &&
          !static_cast<bool>(m_measurementsEntry) &&
          !static_cast<bool>(m_strategyChoiceEntry);
 }
@@ -102,6 +103,31 @@ Entry::erasePitEntry(shared_ptr<pit::Entry> pitEntry)
 
   *it = m_pitEntries.back();
   m_pitEntries.pop_back();
+  pitEntry->m_nameTreeEntry.reset();
+}
+
+void
+Entry::insertSitEntry(shared_ptr<pit::SitEntry> pitEntry)
+{
+  BOOST_ASSERT(static_cast<bool>(pitEntry));
+  BOOST_ASSERT(!static_cast<bool>(pitEntry->m_nameTreeEntry));
+
+  m_sitEntries.push_back(pitEntry);
+  pitEntry->m_nameTreeEntry = this->shared_from_this();
+}
+
+void
+Entry::eraseSitEntry(shared_ptr<pit::SitEntry> pitEntry)
+{
+  BOOST_ASSERT(static_cast<bool>(pitEntry));
+  BOOST_ASSERT(pitEntry->m_nameTreeEntry.get() == this);
+
+  std::vector<shared_ptr<pit::SitEntry> >::iterator it =
+    std::find(m_sitEntries.begin(), m_sitEntries.end(), pitEntry);
+  BOOST_ASSERT(it != m_sitEntries.end());
+
+  *it = m_sitEntries.back();
+  m_sitEntries.pop_back();
   pitEntry->m_nameTreeEntry.reset();
 }
 

@@ -167,7 +167,7 @@ public:
   scheduler::EventId m_unsatisfyTimer;
   scheduler::EventId m_stragglerTimer;
 
-private:
+protected:
   shared_ptr<const Interest> m_interest;
   InRecordCollection m_inRecords;
   OutRecordCollection m_outRecords;

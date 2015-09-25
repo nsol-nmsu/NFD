@@ -23,11 +23,12 @@
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef NFD_DAEMON_TABLE_PIT_HPP
-#define NFD_DAEMON_TABLE_PIT_HPP
+#ifndef NFD_DAEMON_TABLE_SIT_HPP
+#define NFD_DAEMON_TABLE_SIT_HPP
 
 #include "name-tree.hpp"
-#include "pit-entry.hpp"
+#include "pit.hpp"
+#include "sit-entry.hpp"
 
 namespace nfd {
 namespace pit {
@@ -39,44 +40,39 @@ namespace pit {
  *    iterator<shared_ptr<pit::Entry>> begin()
  *    iterator<shared_ptr<pit::Entry>> end()
  */
-typedef std::vector<shared_ptr<pit::Entry>> DataMatchResult;
+typedef std::vector<shared_ptr<pit::SitEntry>> SitDataMatchResult;
 
 } // namespace pit
 
 /** \brief represents the Interest Table
  */
-class Pit : noncopyable
+class Sit : public Pit
 {
 public:
   explicit
-  Pit(NameTree& nameTree);
+  Sit(NameTree& nameTree);
 
-  ~Pit();
-
-  /** \return number of entries
-   */
-  size_t
-  size() const;
+  ~Sit();
 
   /** \brief inserts a PIT entry for Interest
    *
    *  If an entry for exact same name and selectors exists, that entry is returned.
    *  \return the entry, and true for new entry, false for existing entry
    */
-  std::pair<shared_ptr<pit::Entry>, bool>
+  std::pair<shared_ptr<pit::SitEntry>, bool>
   insert(const Interest& interest);
 
   /** \brief performs a Data match
    *  \return an iterable of all PIT entries matching data
    */
-  pit::DataMatchResult
+  pit::SitDataMatchResult
   findAllDataMatches(const Data& data) const;
 
   /**
    *  \brief erases a PIT Entry
    */
   void
-  erase(shared_ptr<pit::Entry> pitEntry);
+  erase(shared_ptr<pit::SitEntry> pitEntry);
 
 public: // enumeration
   class const_iterator;
@@ -96,7 +92,7 @@ public: // enumeration
   const_iterator
   end() const;
 
-  class const_iterator : public std::iterator<std::forward_iterator_tag, const pit::Entry>
+  class const_iterator : public std::iterator<std::forward_iterator_tag, const pit::SitEntry>
   {
   public:
     const_iterator();
@@ -106,10 +102,10 @@ public: // enumeration
 
     ~const_iterator();
 
-    const pit::Entry&
+    const pit::SitEntry&
     operator*() const;
 
-    shared_ptr<pit::Entry>
+    shared_ptr<pit::SitEntry>
     operator->() const;
 
     const_iterator&
@@ -134,54 +130,39 @@ public: // enumeration
     size_t m_iPitEntry;
   };
 
-protected:
-  NameTree& m_nameTree;
-  size_t m_nItems;
 };
 
-inline size_t
-Pit::size() const
-{
-  return m_nItems;
-}
-
-inline Pit::const_iterator
-Pit::end() const
-{
-  return const_iterator(m_nameTree.end());
-}
-
 inline
-Pit::const_iterator::const_iterator()
+Sit::const_iterator::const_iterator()
   : m_iPitEntry(0)
 {
 }
 
 inline
-Pit::const_iterator::const_iterator(const NameTree::const_iterator& it)
+Sit::const_iterator::const_iterator(const NameTree::const_iterator& it)
   : m_nameTreeIterator(it)
   , m_iPitEntry(0)
 {
 }
 
 inline
-Pit::const_iterator::~const_iterator()
+Sit::const_iterator::~const_iterator()
 {
 }
 
-inline Pit::const_iterator
-Pit::const_iterator::operator++(int)
+inline Sit::const_iterator
+Sit::const_iterator::operator++(int)
 {
-  Pit::const_iterator temp(*this);
+  Sit::const_iterator temp(*this);
   ++(*this);
   return temp;
 }
 
-inline Pit::const_iterator&
-Pit::const_iterator::operator++()
+inline Sit::const_iterator&
+Sit::const_iterator::operator++()
 {
   ++m_iPitEntry;
-  if (m_iPitEntry < m_nameTreeIterator->getPitEntries().size()) {
+  if (m_iPitEntry < m_nameTreeIterator->getSitEntries().size()) {
     return *this;
   }
 
@@ -190,27 +171,27 @@ Pit::const_iterator::operator++()
   return *this;
 }
 
-inline const pit::Entry&
-Pit::const_iterator::operator*() const
+inline const pit::SitEntry&
+Sit::const_iterator::operator*() const
 {
   return *(this->operator->());
 }
 
-inline shared_ptr<pit::Entry>
-Pit::const_iterator::operator->() const
+inline shared_ptr<pit::SitEntry>
+Sit::const_iterator::operator->() const
 {
-  return m_nameTreeIterator->getPitEntries().at(m_iPitEntry);
+  return m_nameTreeIterator->getSitEntries().at(m_iPitEntry);
 }
 
 inline bool
-Pit::const_iterator::operator==(const Pit::const_iterator& other) const
+Sit::const_iterator::operator==(const Sit::const_iterator& other) const
 {
   return m_nameTreeIterator == other.m_nameTreeIterator &&
          m_iPitEntry == other.m_iPitEntry;
 }
 
 inline bool
-Pit::const_iterator::operator!=(const Pit::const_iterator& other) const
+Sit::const_iterator::operator!=(const Sit::const_iterator& other) const
 {
   return !(*this == other);
 }

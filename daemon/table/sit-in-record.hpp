@@ -23,39 +23,36 @@
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef NFD_DAEMON_TABLE_PIT_IN_RECORD_HPP
-#define NFD_DAEMON_TABLE_PIT_IN_RECORD_HPP
+#ifndef NFD_DAEMON_TABLE_SIT_IN_RECORD_HPP
+#define NFD_DAEMON_TABLE_SIT_IN_RECORD_HPP
 
 #include "pit-face-record.hpp"
+#include "pit-in-record.hpp"
 
 namespace nfd {
 namespace pit {
 
-/** \class InRecord
+/** \class SitInRecord
  *  \brief contains information about an Interest from an incoming face
  */
-class InRecord : public FaceRecord
+class SitInRecord : public InRecord
 {
 public:
   explicit
-  InRecord(shared_ptr<Face> face);
+  SitInRecord(shared_ptr<Face> face);
 
   void
   update(const Interest& interest);
+  
+  void
+  forward();
+  
+  time::steady_clock::TimePoint
+  getLastForwarded() const;
 
-  const Interest&
-  getInterest() const;
-
-protected:
-  shared_ptr<const Interest> m_interest;
+private:
+  time::steady_clock::TimePoint m_lastForwarded;
 };
-
-inline const Interest&
-InRecord::getInterest() const
-{
-  BOOST_ASSERT(static_cast<bool>(m_interest));
-  return *m_interest;
-}
 
 } // namespace pit
 } // namespace nfd

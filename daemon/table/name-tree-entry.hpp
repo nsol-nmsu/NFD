@@ -29,6 +29,7 @@
 #include "common.hpp"
 #include "table/fib-entry.hpp"
 #include "table/pit-entry.hpp"
+#include "table/sit-entry.hpp"
 #include "table/measurements-entry.hpp"
 #include "table/strategy-choice-entry.hpp"
 
@@ -112,6 +113,18 @@ public: // attached table entries
 
   const std::vector<shared_ptr<pit::Entry> >&
   getPitEntries() const;
+  
+  void
+  insertSitEntry(shared_ptr<pit::SitEntry> pitEntry);
+
+  void
+  eraseSitEntry(shared_ptr<pit::SitEntry> pitEntry);
+  
+  bool
+  hasSitEntries() const;
+
+  const std::vector<shared_ptr<pit::SitEntry> >&
+  getSitEntries() const;
 
   void
   setMeasurementsEntry(shared_ptr<measurements::Entry> measurementsEntry);
@@ -135,6 +148,7 @@ private:
   std::vector<shared_ptr<Entry> > m_children; // Children pointers.
   shared_ptr<fib::Entry> m_fibEntry;
   std::vector<shared_ptr<pit::Entry> > m_pitEntries;
+  std::vector<shared_ptr<pit::SitEntry> > m_sitEntries;
   shared_ptr<measurements::Entry> m_measurementsEntry;
   shared_ptr<strategy_choice::Entry> m_strategyChoiceEntry;
 
@@ -203,6 +217,18 @@ inline const std::vector<shared_ptr<pit::Entry> >&
 Entry::getPitEntries() const
 {
   return m_pitEntries;
+}
+
+inline bool
+Entry::hasSitEntries() const
+{
+  return !m_sitEntries.empty();
+}
+
+inline const std::vector<shared_ptr<pit::SitEntry> >&
+Entry::getSitEntries() const
+{
+  return m_sitEntries;
 }
 
 inline shared_ptr<measurements::Entry>

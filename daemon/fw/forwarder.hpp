@@ -32,6 +32,7 @@
 #include "face-table.hpp"
 #include "table/fib.hpp"
 #include "table/pit.hpp"
+#include "table/sit.hpp"
 #include "table/cs.hpp"
 #include "table/measurements.hpp"
 #include "table/strategy-choice.hpp"
@@ -95,6 +96,9 @@ public: // forwarding entrypoints and tables
 
   Pit&
   getPit();
+  
+  Sit&
+  getSit();
 
   Cs&
   getCs();
@@ -224,6 +228,7 @@ private:
   NameTree       m_nameTree;
   Fib            m_fib;
   Pit            m_pit;
+  Sit            m_sit;
   Cs             m_cs;
   Measurements   m_measurements;
   StrategyChoice m_strategyChoice;
@@ -290,6 +295,12 @@ inline Pit&
 Forwarder::getPit()
 {
   return m_pit;
+}
+
+inline Sit&
+Forwarder::getSit()
+{
+  return m_sit;
 }
 
 inline Cs&

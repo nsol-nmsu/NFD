@@ -23,41 +23,56 @@
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef NFD_DAEMON_TABLE_PIT_IN_RECORD_HPP
-#define NFD_DAEMON_TABLE_PIT_IN_RECORD_HPP
-
-#include "pit-face-record.hpp"
+#include "sit-entry.hpp"
+#include <algorithm>
 
 namespace nfd {
 namespace pit {
 
-/** \class InRecord
- *  \brief contains information about an Interest from an incoming face
- */
-class InRecord : public FaceRecord
+SitEntry::SitEntry(const Interest& interest)
+  : Entry(interest)
 {
-public:
-  explicit
-  InRecord(shared_ptr<Face> face);
+}
 
-  void
-  update(const Interest& interest);
-
-  const Interest&
-  getInterest() const;
-
-protected:
-  shared_ptr<const Interest> m_interest;
-};
-
-inline const Interest&
-InRecord::getInterest() const
+SitInRecordCollection::iterator
+SitEntry::insertOrUpdateInRecord(shared_ptr<Face> face, const Interest& interest)
 {
-  BOOST_ASSERT(static_cast<bool>(m_interest));
-  return *m_interest;
+  auto it = std::find_if(m_inRecords.begin(), m_inRecords.end(),
+    [&face] (const InRecord& inRecord) { return inRecord.getFace() == face; });
+  if (it == m_inRecords.end()) {
+    m_inRecords.emplace_front(face);
+    it = m_inRecords.begin();
+  }
+
+  it->update(interest);
+  return it;
+}
+
+SitInRecordCollection::const_iterator
+SitEntry::getInRecord(const Face& face) const
+{
+  return std::find_if(m_inRecords.begin(), m_inRecords.end(),
+    [&face] (const InRecord& inRecord) { return inRecord.getFace().get() == &face; });
+}
+
+void
+SitEntry::forwardInterest(shared_ptr<Face> face)
+{       
+  SitInRecordCollection::iterator it = std::find_if(m_inRecords.begin(), m_inRecords.end(),
+    [&face] (const SitInRecord& inRecord) { return inRecord.getFace() == face; });
+  if (it != m_inRecords.end()) {
+    it->forward();
+  }
+}
+
+time::steady_clock::TimePoint
+SitEntry::getLastForwarded() const
+{
+  auto m = std::max_element(m_inRecords.begin(), m_inRecords.end(),
+    [](const SitInRecord& a, const SitInRecord& b) { return a.getLastForwarded() < b.getLastForwarded(); }
+  );
+  return m->getLastForwarded();
 }
 
 } // namespace pit
 } // namespace nfd
-
-#endif // NFD_DAEMON_TABLE_PIT_IN_RECORD_HPP
