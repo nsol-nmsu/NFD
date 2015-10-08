@@ -56,7 +56,7 @@ SitEntry::getInRecord(const Face& face) const
 }
 
 void
-SitEntry::forwardInterest(shared_ptr<Face> face)
+SitEntry::forwardInterest(shared_ptr<const Face> face)
 {       
   SitInRecordCollection::iterator it = std::find_if(m_inRecords.begin(), m_inRecords.end(),
     [&face] (const SitInRecord& inRecord) { return inRecord.getFace() == face; });

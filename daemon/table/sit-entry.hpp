@@ -47,7 +47,7 @@ public:
   SitEntry(const Interest& interest);
   
   void
-  forwardInterest(shared_ptr<Face> face);
+  forwardInterest(shared_ptr<const Face> face);
   
   time::steady_clock::TimePoint
   getLastForwarded() const;
