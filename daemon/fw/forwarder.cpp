@@ -77,45 +77,90 @@ Forwarder::onIncomingInterest(Face& inFace, const Interest& interest)
     // (drop)
     return;
   }
+  
+  if(interest.getSubscription() == 0){
 
-  // PIT insert
-  shared_ptr<pit::Entry> pitEntry = m_pit.insert(interest).first;
+        // PIT insert
+        shared_ptr<pit::Entry> pitEntry = m_pit.insert(interest).first;
 
-  // detect duplicate Nonce
-  int dnw = pitEntry->findNonce(interest.getNonce(), inFace);
-  bool hasDuplicateNonce = (dnw != pit::DUPLICATE_NONCE_NONE) ||
-                           m_deadNonceList.has(interest.getName(), interest.getNonce());
-  if (hasDuplicateNonce) {
-    // goto Interest loop pipeline
-    this->onInterestLoop(inFace, interest, pitEntry);
-    return;
-  }
+        // detect duplicate Nonce
+        int dnw = pitEntry->findNonce(interest.getNonce(), inFace);
+        bool hasDuplicateNonce = (dnw != pit::DUPLICATE_NONCE_NONE) ||
+                                  m_deadNonceList.has(interest.getName(), interest.getNonce());
+        if (hasDuplicateNonce) {
+                // goto Interest loop pipeline
+                this->onInterestLoop(inFace, interest, pitEntry);
+                return;
+        }
 
-  // cancel unsatisfy & straggler timer
-  this->cancelUnsatisfyAndStragglerTimer(pitEntry);
+        // cancel unsatisfy & straggler timer
+        this->cancelUnsatisfyAndStragglerTimer(pitEntry);
 
-  // is pending?
-  const pit::InRecordCollection& inRecords = pitEntry->getInRecords();
-  bool isPending = inRecords.begin() != inRecords.end();
-  if (!isPending) {
-    if (m_csFromNdnSim == nullptr) {
-      m_cs.find(interest,
-                bind(&Forwarder::onContentStoreHit, this, ref(inFace), pitEntry, _1, _2),
-                bind(&Forwarder::onContentStoreMiss, this, ref(inFace), pitEntry, _1));
-    }
-    else {
-      shared_ptr<Data> match = m_csFromNdnSim->Lookup(interest.shared_from_this());
-      if (match != nullptr) {
-        this->onContentStoreHit(inFace, pitEntry, interest, *match);
-      }
-      else {
-        this->onContentStoreMiss(inFace, pitEntry, interest);
-      }
-    }
-  }
-  else {
-    this->onContentStoreMiss(inFace, pitEntry, interest);
-  }
+        // is pending?
+        const pit::InRecordCollection& inRecords = pitEntry->getInRecords();
+        bool isPending = inRecords.begin() != inRecords.end();
+        if (!isPending) {
+                if (m_csFromNdnSim == nullptr) {
+                        m_cs.find(interest,
+                                bind(&Forwarder::onContentStoreHit, this, ref(inFace), pitEntry, _1, _2),
+                                bind(&Forwarder::onContentStoreMiss, this, ref(inFace), pitEntry, _1)
+                        );
+                }
+                else {
+                        shared_ptr<Data> match = m_csFromNdnSim->Lookup(interest.shared_from_this());
+                        if (match != nullptr) {
+                                this->onContentStoreHit(inFace, pitEntry, interest, *match);
+                        }
+                        else {
+                                this->onContentStoreMiss(inFace, pitEntry, interest);
+                        }
+                }
+        }
+        else {
+                this->onContentStoreMiss(inFace, pitEntry, interest);
+        }
+   }
+   else{
+        // PIT insert
+        shared_ptr<pit::SitEntry> pitEntry = m_sit.insert(interest).first;
+
+        // detect duplicate Nonce
+        int dnw = pitEntry->findNonce(interest.getNonce(), inFace);
+        bool hasDuplicateNonce = (dnw != pit::DUPLICATE_NONCE_NONE) ||
+                                  m_deadNonceList.has(interest.getName(), interest.getNonce());
+        if (hasDuplicateNonce) {
+                // goto Interest loop pipeline
+                this->onInterestLoop(inFace, interest, pitEntry);
+                return;
+        }
+
+        // cancel unsatisfy & straggler timer
+        this->cancelUnsatisfyAndStragglerTimer(pitEntry);
+
+        // is pending?
+        const pit::SitInRecordCollection& inRecords = pitEntry->getInRecords();
+        bool isPending = inRecords.begin() != inRecords.end();
+        if (!isPending) {
+                if (m_csFromNdnSim == nullptr) {
+                        m_cs.find(interest,
+                                bind(&Forwarder::onSitContentStoreHit, this, ref(inFace), pitEntry, _1, _2),
+                                bind(&Forwarder::onSitContentStoreMiss, this, ref(inFace), pitEntry, _1)
+                        );
+                }
+                else {
+                        shared_ptr<Data> match = m_csFromNdnSim->Lookup(interest.shared_from_this());
+                        if (match != nullptr) {
+                                this->onSitContentStoreHit(inFace, pitEntry, interest, *match);
+                        }
+                        else {
+                                this->onSitContentStoreMiss(inFace, pitEntry, interest);
+                        }
+                }
+        }
+        else {
+                this->onSitContentStoreMiss(inFace, pitEntry, interest);
+        }
+   }
 }
 
 void
@@ -143,6 +188,59 @@ Forwarder::onContentStoreMiss(const Face& inFace,
 void
 Forwarder::onContentStoreHit(const Face& inFace,
                              shared_ptr<pit::Entry> pitEntry,
+                             const Interest& interest,
+                             const Data& data)
+{
+  NFD_LOG_DEBUG("onContentStoreHit interest=" << interest.getName());
+
+  beforeSatisfyInterest(*pitEntry, *m_csFace, data);
+  this->dispatchToStrategy(pitEntry, bind(&Strategy::beforeSatisfyInterest, _1,
+                                          pitEntry, cref(*m_csFace), cref(data)));
+
+  const_pointer_cast<Data>(data.shared_from_this())->setIncomingFaceId(FACEID_CONTENT_STORE);
+  // XXX should we lookup PIT for other Interests that also match csMatch?
+
+  // set PIT straggler timer
+  this->setStragglerTimer(pitEntry, true, data.getFreshnessPeriod());
+
+  // goto outgoing Data pipeline
+  this->onOutgoingData(data, *const_pointer_cast<Face>(inFace.shared_from_this()));
+}
+
+void
+Forwarder::onSitContentStoreMiss(const Face& inFace,
+                              shared_ptr<pit::SitEntry> pitEntry,
+                              const Interest& interest)
+{
+  NFD_LOG_DEBUG("onContentStoreMiss interest=" << interest.getName());
+
+  shared_ptr<Face> face = const_pointer_cast<Face>(inFace.shared_from_this());
+  // insert InRecord
+  pitEntry->insertOrUpdateInRecord(face, interest);
+
+  // set PIT unsatisfy timer
+  this->setUnsatisfyTimer(pitEntry);
+  
+  // only forward up if it hasnt been forwarded recently
+  #define SUBSCRIPTION_HARD_LIMIT boost::chrono::minutes(15)
+  if(pitEntry->getLastForwarded() < time::steady_clock::now() - SUBSCRIPTION_HARD_LIMIT){
+  
+        // FIB lookup
+        shared_ptr<fib::Entry> fibEntry = m_fib.findLongestPrefixMatch(*pitEntry);
+
+        // dispatch to strategy
+        this->dispatchToStrategy(pitEntry, bind(&Strategy::afterReceiveInterest, _1,
+                                                cref(inFace), cref(interest), fibEntry, pitEntry));
+        
+        // mark interest as forwarded
+        pitEntry->forwardInterest(std::shared_ptr<const Face>(&inFace));
+  
+  }
+}
+
+void
+Forwarder::onSitContentStoreHit(const Face& inFace,
+                             shared_ptr<pit::SitEntry> pitEntry,
                              const Interest& interest,
                              const Data& data)
 {
