@@ -402,12 +402,13 @@ Forwarder::onIncomingData(Face& inFace, const Data& data)
 
   // PIT match
   pit::DataMatchResult pitMatches = m_pit.findAllDataMatches(data);
-  if (pitMatches.begin() == pitMatches.end()) {
+  pit::SitDataMatchResult sitMatches = m_sit.findAllDataMatches(data);
+  if (pitMatches.begin() == pitMatches.end() && sitMatches.begin() == sitMatches.end()) {
     // goto Data unsolicited pipeline
     this->onDataUnsolicited(inFace, data);
     return;
   }
-
+  
   // Remove Ptr<Packet> from the Data before inserting into cache, serving two purposes
   // - reduce amount of memory used by cached entries
   // - remove all tags that (e.g., hop count tag) that could have been associated with Ptr<Packet>
@@ -451,6 +452,38 @@ Forwarder::onIncomingData(Face& inFace, const Data& data)
     // mark PIT satisfied
     pitEntry->deleteInRecords();
     pitEntry->deleteOutRecord(inFace);
+
+    // set PIT straggler timer
+    this->setStragglerTimer(pitEntry, true, data.getFreshnessPeriod());
+  }
+  
+  // foreach SitEntry
+  for (const shared_ptr<pit::SitEntry>& pitEntry : sitMatches) {
+    NFD_LOG_DEBUG("onIncomingData matching=" << pitEntry->getName());
+
+    // cancel unsatisfy & straggler timer
+    this->cancelUnsatisfyAndStragglerTimer(pitEntry);
+
+    // remember pending downstreams
+    const pit::SitInRecordCollection& inRecords = pitEntry->getInRecords();
+    for (pit::SitInRecordCollection::const_iterator it = inRecords.begin();
+                                                    it != inRecords.end(); ++it) {
+      if (it->getExpiry() > time::steady_clock::now()) {
+        pendingDownstreams.insert(it->getFace());
+      }
+    }
+
+    // invoke PIT satisfy callback
+    beforeSatisfyInterest(*pitEntry, inFace, data);
+    this->dispatchToStrategy(pitEntry, bind(&Strategy::beforeSatisfyInterest, _1,
+                                            pitEntry, cref(inFace), cref(data)));
+
+    // Dead Nonce List insert if necessary (for OutRecord of inFace)
+    this->insertDeadNonceList(*pitEntry, true, data.getFreshnessPeriod(), &inFace);
+
+    // mark PIT satisfied
+    // pitEntry->deleteInRecords();
+    // pitEntry->deleteOutRecord(inFace);
 
     // set PIT straggler timer
     this->setStragglerTimer(pitEntry, true, data.getFreshnessPeriod());
