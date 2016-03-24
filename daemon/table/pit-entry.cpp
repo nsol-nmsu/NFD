@@ -194,5 +194,16 @@ Entry::hasUnexpiredOutRecords() const
     [&now] (const OutRecord& outRecord) { return outRecord.getExpiry() >= now; });
 }
 
+
+time::steady_clock::TimePoint
+Entry::getLastForwarded() const
+{
+  auto m = std::max_element(m_inRecords.begin(), m_inRecords.end(),
+    [](const InRecord& a, const InRecord& b) { return a.getLastForwarded() < b.getLastForwarded(); }
+  );
+  return m->getLastForwarded();
+}
+
+
 } // namespace pit
 } // namespace nfd

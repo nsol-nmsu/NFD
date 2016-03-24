@@ -46,11 +46,13 @@ SitInRecord::forward()
   m_lastForwarded = time::steady_clock::now();
 }
 
+
 time::steady_clock::TimePoint
 SitInRecord::getLastForwarded() const
 {
   return m_lastForwarded;
 }
+
 
 } // namespace pit
 } // namespace nfd

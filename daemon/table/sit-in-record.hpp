@@ -46,12 +46,15 @@ public:
   
   void
   forward();
-  
+
+
   time::steady_clock::TimePoint
   getLastForwarded() const;
 
+
 private:
   time::steady_clock::TimePoint m_lastForwarded;
+
 };
 
 } // namespace pit

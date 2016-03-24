@@ -77,7 +77,7 @@ Forwarder::onIncomingInterest(Face& inFace, const Interest& interest)
     // (drop)
     return;
   }
-  
+
   if(interest.getSubscription() == 0){
 
         // PIT insert
@@ -121,8 +121,9 @@ Forwarder::onIncomingInterest(Face& inFace, const Interest& interest)
         }
    }
    else{
-        // PIT insert
-        shared_ptr<pit::SitEntry> pitEntry = m_sit.insert(interest).first;
+
+        // SIT insert
+        shared_ptr<pit::Entry> pitEntry = m_sit.insert(interest).first;
 
         // detect duplicate Nonce
         int dnw = pitEntry->findNonce(interest.getNonce(), inFace);
@@ -138,7 +139,7 @@ Forwarder::onIncomingInterest(Face& inFace, const Interest& interest)
         this->cancelUnsatisfyAndStragglerTimer(pitEntry);
 
         // is pending?
-        const pit::SitInRecordCollection& inRecords = pitEntry->getInRecords();
+        const pit::InRecordCollection& inRecords = pitEntry->getInRecords();
         bool isPending = inRecords.begin() != inRecords.end();
         if (!isPending) {
                 if (m_csFromNdnSim == nullptr) {
@@ -160,6 +161,9 @@ Forwarder::onIncomingInterest(Face& inFace, const Interest& interest)
         else {
                 this->onSitContentStoreMiss(inFace, pitEntry, interest);
         }
+
+
+
    }
 }
 
@@ -209,21 +213,21 @@ Forwarder::onContentStoreHit(const Face& inFace,
 
 void
 Forwarder::onSitContentStoreMiss(const Face& inFace,
-                              shared_ptr<pit::SitEntry> pitEntry,
+                              shared_ptr<pit::Entry> pitEntry,
                               const Interest& interest)
 {
-  NFD_LOG_DEBUG("onContentStoreMiss interest=" << interest.getName());
+  NFD_LOG_DEBUG("onSitContentStoreMiss interest=" << interest.getName());
 
   shared_ptr<Face> face = const_pointer_cast<Face>(inFace.shared_from_this());
   // insert InRecord
   pitEntry->insertOrUpdateInRecord(face, interest);
 
-  // set PIT unsatisfy timer
+  // set SIT unsatisfy timer
   this->setUnsatisfyTimer(pitEntry);
   
   // only forward up if it hasnt been forwarded recently
-  #define SUBSCRIPTION_HARD_LIMIT boost::chrono::minutes(15)
-  if(pitEntry->getLastForwarded() < time::steady_clock::now() - SUBSCRIPTION_HARD_LIMIT){
+  //-----#define SUBSCRIPTION_HARD_LIMIT boost::chrono::minutes(15)
+  //-----if(pitEntry->getLastForwarded() < time::steady_clock::now() - SUBSCRIPTION_HARD_LIMIT){
   
         // FIB lookup
         shared_ptr<fib::Entry> fibEntry = m_fib.findLongestPrefixMatch(*pitEntry);
@@ -233,27 +237,27 @@ Forwarder::onSitContentStoreMiss(const Face& inFace,
                                                 cref(inFace), cref(interest), fibEntry, pitEntry));
         
         // mark interest as forwarded
-        pitEntry->forwardInterest(std::shared_ptr<const Face>(&inFace));
+        //---pitEntry->forwardInterest(std::shared_ptr<const Face>(&inFace));
   
-  }
+  //-----}
 }
 
 void
 Forwarder::onSitContentStoreHit(const Face& inFace,
-                             shared_ptr<pit::SitEntry> pitEntry,
+                             shared_ptr<pit::Entry> pitEntry,
                              const Interest& interest,
                              const Data& data)
 {
-  NFD_LOG_DEBUG("onContentStoreHit interest=" << interest.getName());
+  NFD_LOG_DEBUG("onSitContentStoreHit interest=" << interest.getName());
 
   beforeSatisfyInterest(*pitEntry, *m_csFace, data);
   this->dispatchToStrategy(pitEntry, bind(&Strategy::beforeSatisfyInterest, _1,
                                           pitEntry, cref(*m_csFace), cref(data)));
 
   const_pointer_cast<Data>(data.shared_from_this())->setIncomingFaceId(FACEID_CONTENT_STORE);
-  // XXX should we lookup PIT for other Interests that also match csMatch?
+  // XXX should we lookup SIT for other Interests that also match csMatch?
 
-  // set PIT straggler timer
+  // set SIT straggler timer
   this->setStragglerTimer(pitEntry, true, data.getFreshnessPeriod());
 
   // goto outgoing Data pipeline
@@ -377,9 +381,12 @@ Forwarder::onInterestFinalize(shared_ptr<pit::Entry> pitEntry, bool isSatisfied,
   // Dead Nonce List insert if necessary
   this->insertDeadNonceList(*pitEntry, isSatisfied, dataFreshnessPeriod, 0);
 
-  // PIT delete
-  this->cancelUnsatisfyAndStragglerTimer(pitEntry);
-  m_pit.erase(pitEntry);
+  // PIT delete; only if it is a normal interest, thus Subscription = 0
+  if (pitEntry->getInterest().getSubscription() == 0) {
+    this->cancelUnsatisfyAndStragglerTimer(pitEntry);
+    m_pit.erase(pitEntry);
+  }
+
 }
 
 void
@@ -425,6 +432,7 @@ Forwarder::onIncomingData(Face& inFace, const Data& data)
     m_csFromNdnSim->Add(dataCopyWithoutPacket);
 
   std::set<shared_ptr<Face> > pendingDownstreams;
+
   // foreach PitEntry
   for (const shared_ptr<pit::Entry>& pitEntry : pitMatches) {
     NFD_LOG_DEBUG("onIncomingData matching=" << pitEntry->getName());
@@ -456,24 +464,24 @@ Forwarder::onIncomingData(Face& inFace, const Data& data)
     // set PIT straggler timer
     this->setStragglerTimer(pitEntry, true, data.getFreshnessPeriod());
   }
-  
+
   // foreach SitEntry
-  for (const shared_ptr<pit::SitEntry>& pitEntry : sitMatches) {
+  for (const shared_ptr<pit::Entry>& pitEntry : sitMatches) {
     NFD_LOG_DEBUG("onIncomingData matching=" << pitEntry->getName());
 
     // cancel unsatisfy & straggler timer
     this->cancelUnsatisfyAndStragglerTimer(pitEntry);
 
     // remember pending downstreams
-    const pit::SitInRecordCollection& inRecords = pitEntry->getInRecords();
-    for (pit::SitInRecordCollection::const_iterator it = inRecords.begin();
+    const pit::InRecordCollection& inRecords = pitEntry->getInRecords();
+    for (pit::InRecordCollection::const_iterator it = inRecords.begin();
                                                     it != inRecords.end(); ++it) {
       if (it->getExpiry() > time::steady_clock::now()) {
         pendingDownstreams.insert(it->getFace());
       }
     }
 
-    // invoke PIT satisfy callback
+    // invoke SIT satisfy callback
     beforeSatisfyInterest(*pitEntry, inFace, data);
     this->dispatchToStrategy(pitEntry, bind(&Strategy::beforeSatisfyInterest, _1,
                                             pitEntry, cref(inFace), cref(data)));

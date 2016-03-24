@@ -73,6 +73,9 @@ public:
   const Interest&
   getInterest() const;
 
+  time::steady_clock::TimePoint
+  getLastForwarded() const;
+
   /** \return Interest Name
    */
   const Name&

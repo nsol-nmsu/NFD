@@ -29,6 +29,7 @@ namespace pit {
 
 InRecord::InRecord(shared_ptr<Face> face)
   : FaceRecord(face)
+  , m_lastForwarded(time::steady_clock::TimePoint::min())
 {
 }
 
@@ -37,6 +38,12 @@ InRecord::update(const Interest& interest)
 {
   this->FaceRecord::update(interest);
   m_interest = const_cast<Interest&>(interest).shared_from_this();
+}
+
+time::steady_clock::TimePoint
+InRecord::getLastForwarded() const
+{
+  return m_lastForwarded;
 }
 
 } // namespace pit

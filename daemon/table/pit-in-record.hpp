@@ -46,8 +46,15 @@ public:
   const Interest&
   getInterest() const;
 
+  time::steady_clock::TimePoint
+  getLastForwarded() const;
+
 protected:
   shared_ptr<const Interest> m_interest;
+
+private:
+  time::steady_clock::TimePoint m_lastForwarded;
+
 };
 
 inline const Interest&
