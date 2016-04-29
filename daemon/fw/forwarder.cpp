@@ -123,7 +123,12 @@ Forwarder::onIncomingInterest(Face& inFace, const Interest& interest)
    else{
 
         // SIT insert
-        shared_ptr<pit::Entry> pitEntry = m_sit.insert(interest).first;
+
+	//shared_ptr<pit::Entry> pitEntry = m_sit.insert(interest).first;
+	std::pair<shared_ptr<pit::Entry>, bool> sitPair = m_sit.insert(interest);
+
+        shared_ptr<pit::Entry> pitEntry = sitPair.first;
+	bool isNewEntry = sitPair.second;
 
         // detect duplicate Nonce
         int dnw = pitEntry->findNonce(interest.getNonce(), inFace);
@@ -145,7 +150,7 @@ Forwarder::onIncomingInterest(Face& inFace, const Interest& interest)
                 if (m_csFromNdnSim == nullptr) {
                         m_cs.find(interest,
                                 bind(&Forwarder::onSitContentStoreHit, this, ref(inFace), pitEntry, _1, _2),
-                                bind(&Forwarder::onSitContentStoreMiss, this, ref(inFace), pitEntry, _1)
+                                bind(&Forwarder::onSitContentStoreMiss, this, ref(inFace), pitEntry, _1, isNewEntry)
                         );
                 }
                 else {
@@ -154,16 +159,13 @@ Forwarder::onIncomingInterest(Face& inFace, const Interest& interest)
                                 this->onSitContentStoreHit(inFace, pitEntry, interest, *match);
                         }
                         else {
-                                this->onSitContentStoreMiss(inFace, pitEntry, interest);
+                                this->onSitContentStoreMiss(inFace, pitEntry, interest, isNewEntry);
                         }
                 }
         }
         else {
-                this->onSitContentStoreMiss(inFace, pitEntry, interest);
+                this->onSitContentStoreMiss(inFace, pitEntry, interest, isNewEntry);
         }
-
-
-
    }
 }
 
@@ -214,7 +216,8 @@ Forwarder::onContentStoreHit(const Face& inFace,
 void
 Forwarder::onSitContentStoreMiss(const Face& inFace,
                               shared_ptr<pit::Entry> pitEntry,
-                              const Interest& interest)
+                              const Interest& interest,
+			      bool isNewEntry)
 {
   NFD_LOG_DEBUG("onSitContentStoreMiss interest=" << interest.getName());
 
@@ -224,21 +227,39 @@ Forwarder::onSitContentStoreMiss(const Face& inFace,
 
   // set SIT unsatisfy timer
   this->setUnsatisfyTimer(pitEntry);
-  
+
   // only forward up if it hasnt been forwarded recently
   //-----#define SUBSCRIPTION_HARD_LIMIT boost::chrono::minutes(15)
   //-----if(pitEntry->getLastForwarded() < time::steady_clock::now() - SUBSCRIPTION_HARD_LIMIT){
-  
+
+  if (interest.getSubscription() == 1) {
+
+ 	// Soft subscription
+
+	//Only forward upstream to producer if this is the first interest of its kind
+	if (isNewEntry == true) {
+		// FIB lookup
+        	shared_ptr<fib::Entry> fibEntry = m_fib.findLongestPrefixMatch(*pitEntry);
+
+        	// dispatch to strategy
+        	this->dispatchToStrategy(pitEntry, bind(&Strategy::afterReceiveInterest, _1,
+                                                cref(inFace), cref(interest), fibEntry, pitEntry));
+	}
+
+  }
+  else {
         // FIB lookup
         shared_ptr<fib::Entry> fibEntry = m_fib.findLongestPrefixMatch(*pitEntry);
 
         // dispatch to strategy
         this->dispatchToStrategy(pitEntry, bind(&Strategy::afterReceiveInterest, _1,
                                                 cref(inFace), cref(interest), fibEntry, pitEntry));
-        
+
         // mark interest as forwarded
         //---pitEntry->forwardInterest(std::shared_ptr<const Face>(&inFace));
-  
+
+  }
+
   //-----}
 }
 

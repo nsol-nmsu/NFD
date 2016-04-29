@@ -96,7 +96,7 @@ public: // forwarding entrypoints and tables
 
   Pit&
   getPit();
-  
+
   Sit&
   getSit();
 
@@ -147,7 +147,7 @@ PUBLIC_WITH_TESTS_ELSE_PRIVATE: // pipelines
   /** \brief Content Store miss pipeline
   */
   void
-  onSitContentStoreMiss(const Face& inFace, shared_ptr<pit::Entry> pitEntry, const Interest& interest);
+  onSitContentStoreMiss(const Face& inFace, shared_ptr<pit::Entry> pitEntry, const Interest& interest, bool isNewEntry);
 
   /** \brief Content Store hit pipeline
   */
@@ -252,6 +252,7 @@ private:
 
   // allow Strategy (base class) to enter pipelines
   friend class fw::Strategy;
+
 };
 
 inline const ForwarderCounters&
