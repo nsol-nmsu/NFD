@@ -511,8 +511,8 @@ Forwarder::onIncomingData(Face& inFace, const Data& data)
     this->insertDeadNonceList(*pitEntry, true, data.getFreshnessPeriod(), &inFace);
 
     // mark PIT satisfied
-    // pitEntry->deleteInRecords();
-    // pitEntry->deleteOutRecord(inFace);
+    //pitEntry->deleteInRecords();
+    //pitEntry->deleteOutRecord(inFace);
 
     // set PIT straggler timer
     this->setStragglerTimer(pitEntry, true, data.getFreshnessPeriod());
