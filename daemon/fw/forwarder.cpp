@@ -78,7 +78,7 @@ Forwarder::onIncomingInterest(Face& inFace, const Interest& interest)
     return;
   }
 
-  if(interest.getSubscription() == 0){
+  if(interest.getSubscription() == 0){ //normal interests (no subscription)
 
         // PIT insert
         shared_ptr<pit::Entry> pitEntry = m_pit.insert(interest).first;
@@ -120,7 +120,7 @@ Forwarder::onIncomingInterest(Face& inFace, const Interest& interest)
                 this->onContentStoreMiss(inFace, pitEntry, interest);
         }
    }
-   else{
+   else{ //handle fowarding logic for subscription interests using SIT
 
         // SIT insert
 
@@ -128,7 +128,7 @@ Forwarder::onIncomingInterest(Face& inFace, const Interest& interest)
 	std::pair<shared_ptr<pit::Entry>, bool> sitPair = m_sit.insert(interest);
 
         shared_ptr<pit::Entry> pitEntry = sitPair.first;
-	bool isNewEntry = sitPair.second;
+	bool isNewEntry = sitPair.second; //used to handle soft and hard subscriptions
 
         // detect duplicate Nonce
         int dnw = pitEntry->findNonce(interest.getNonce(), inFace);
@@ -248,6 +248,8 @@ Forwarder::onSitContentStoreMiss(const Face& inFace,
 
   }
   else {
+	// Hard subscription
+
         // FIB lookup
         shared_ptr<fib::Entry> fibEntry = m_fib.findLongestPrefixMatch(*pitEntry);
 

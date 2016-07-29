@@ -143,13 +143,13 @@ PUBLIC_WITH_TESTS_ELSE_PRIVATE: // pipelines
   void
   onContentStoreHit(const Face& inFace, shared_ptr<pit::Entry> pitEntry,
                     const Interest& interest, const Data& data);
-  
-  /** \brief Content Store miss pipeline
+
+  /** \brief Content Store miss pipeline for subscription interests
   */
   void
   onSitContentStoreMiss(const Face& inFace, shared_ptr<pit::Entry> pitEntry, const Interest& interest, bool isNewEntry);
 
-  /** \brief Content Store hit pipeline
+  /** \brief Content Store hit pipeline for subscription interests
   */
   void
   onSitContentStoreHit(const Face& inFace, shared_ptr<pit::Entry> pitEntry,
