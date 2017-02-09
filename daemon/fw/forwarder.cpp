@@ -441,7 +441,7 @@ Forwarder::onIncomingNack(Face& inFace, const lp::Nack& nack)
   // receive Nack
   nack.setTag(make_shared<lp::IncomingFaceIdTag>(inFace.getId()));
   ++m_counters.nInNacks;
-
+std::cout << "NACK received in forwarder, onIncomingNack" << std::endl;
   // if multi-access face, drop
   if (inFace.getLinkType() == ndn::nfd::LINK_TYPE_MULTI_ACCESS) {
     NFD_LOG_DEBUG("onIncomingNack face=" << inFace.getId() <<
