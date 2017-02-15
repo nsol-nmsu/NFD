@@ -32,6 +32,7 @@
 
 
 #include "ns3/ndnSIM/helper/ndn-link-control-helper.hpp"
+
 #include "ns3/assert.h"
 #include "ns3/names.h"
 #include "ns3/point-to-point-net-device.h"
@@ -126,7 +127,6 @@ void
 StatefulForwardingStrategy::afterReceiveInterest(const Face& inFace, const Interest& interest,
                                          const shared_ptr<pit::Entry>& pitEntry)
 {
-std::cout << "Stateful FW strategy, afterReceiveInterest " << std::endl;
 
   RetxSuppression::Result suppression = m_retxSuppression.decide(inFace, interest, *pitEntry);
   if (suppression == RetxSuppression::SUPPRESS) {
@@ -188,7 +188,7 @@ std::cout << "Stateful FW strategy, afterReceiveInterest " << std::endl;
         outFaceNode1 = nd1->GetNode()->GetId();
         outFaceNode2 = nd2->GetNode()->GetId();
 
-        // Determine the node associated with the outFace to send the NACK from
+        // Determine the node associated with the outFace. Send the NACK from this node
 	ns3::PointerValue pv;
         if (inFaceNode1 == outFaceNode1)
 		nd1->GetAttribute("ReceiveErrorModel", pv);
@@ -249,6 +249,7 @@ std::cout << "Stateful FW strategy, afterReceiveInterest " << std::endl;
     NFD_LOG_DEBUG(interest << " from=" << inFace.getId()
                            << " retransmit-retry-to=" << outFace.getId());
   }
+
 }
 
 /** \return less severe NackReason between x and y
@@ -271,8 +272,6 @@ void
 StatefulForwardingStrategy::afterReceiveNack(const Face& inFace, const lp::Nack& nack,
                                      const shared_ptr<pit::Entry>& pitEntry)
 {
-
-std::cout << "Stateful FW strategy, afterReceiveNack -- " << nack.getReason() << " -- RESEND " << nack.getInterest().getName() << std::endl;
 
   int nOutRecordsNotNacked = 0;
   Face* lastFaceNotNacked = nullptr;

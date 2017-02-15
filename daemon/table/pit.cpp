@@ -40,6 +40,10 @@ Pit::Pit(NameTree& nameTree)
 {
 }
 
+Pit::~Pit()
+{
+}
+
 std::pair<shared_ptr<Entry>, bool>
 Pit::findOrInsert(const Interest& interest, bool allowInsert)
 {

@@ -28,6 +28,7 @@
 
 #include "table/fib-entry.hpp"
 #include "table/pit-entry.hpp"
+#include "table/sit-entry.hpp"
 #include "table/measurements-entry.hpp"
 #include "table/strategy-choice-entry.hpp"
 
@@ -122,10 +123,22 @@ public: // attached table entries
     return !this->getPitEntries().empty();
   }
 
+  bool
+  hasSitEntries() const
+  {
+    return !this->getSitEntries().empty();
+  }
+
   const std::vector<shared_ptr<pit::Entry>>&
   getPitEntries() const
   {
     return m_pitEntries;
+  }
+
+  const std::vector<shared_ptr<pit::SitEntry>>&
+  getSitEntries() const
+  {
+    return m_sitEntries;
   }
 
   void
@@ -133,6 +146,12 @@ public: // attached table entries
 
   void
   erasePitEntry(pit::Entry* pitEntry);
+
+  void
+  insertSitEntry(shared_ptr<pit::SitEntry> pitEntry);
+
+  void
+  eraseSitEntry(pit::SitEntry* pitEntry);
 
   measurements::Entry*
   getMeasurementsEntry() const
@@ -172,6 +191,7 @@ private:
 
   unique_ptr<fib::Entry> m_fibEntry;
   std::vector<shared_ptr<pit::Entry>> m_pitEntries;
+  std::vector<shared_ptr<pit::SitEntry> > m_sitEntries;
   unique_ptr<measurements::Entry> m_measurementsEntry;
   unique_ptr<strategy_choice::Entry> m_strategyChoiceEntry;
 

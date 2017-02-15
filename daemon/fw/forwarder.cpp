@@ -40,6 +40,7 @@ Forwarder::Forwarder()
   : m_unsolicitedDataPolicy(new fw::DefaultUnsolicitedDataPolicy())
   , m_fib(m_nameTree)
   , m_pit(m_nameTree)
+  , m_sit(m_nameTree)
   , m_measurements(m_nameTree)
   , m_strategyChoice(m_nameTree, fw::makeDefaultStrategy(*this))
   , m_csFace(face::makeNullFace(FaceUri("contentstore://")))
@@ -65,6 +66,7 @@ Forwarder::Forwarder()
   m_faceTable.beforeRemove.connect([this] (Face& face) {
     cleanupOnFaceRemoval(m_nameTree, m_fib, m_pit, face);
   });
+
 }
 
 Forwarder::~Forwarder() = default;
@@ -143,42 +145,93 @@ Forwarder::onIncomingInterest(Face& inFace, const Interest& interest)
     return;
   }
 
-  // PIT insert
-  shared_ptr<pit::Entry> pitEntry = m_pit.insert(interest).first;
+  if(interest.getSubscription() == 0){ //normal interests (Subscription = 0) 
 
-  // detect duplicate Nonce in PIT entry
-  bool hasDuplicateNonceInPit = fw::findDuplicateNonce(*pitEntry, interest.getNonce(), inFace) !=
+  	// PIT insert
+  	shared_ptr<pit::Entry> pitEntry = m_pit.insert(interest).first;
+
+  	// detect duplicate Nonce in PIT entry
+  	bool hasDuplicateNonceInPit = fw::findDuplicateNonce(*pitEntry, interest.getNonce(), inFace) !=
                                 fw::DUPLICATE_NONCE_NONE;
-  if (hasDuplicateNonceInPit) {
-    // goto Interest loop pipeline
-    this->onInterestLoop(inFace, interest);
-    return;
+  	if (hasDuplicateNonceInPit) {
+    	// goto Interest loop pipeline
+    		this->onInterestLoop(inFace, interest);
+    		return;
+  	}
+
+  	// cancel unsatisfy & straggler timer
+  	this->cancelUnsatisfyAndStragglerTimer(*pitEntry);
+
+  	const pit::InRecordCollection& inRecords = pitEntry->getInRecords();
+  	bool isPending = inRecords.begin() != inRecords.end();
+  	if (!isPending) {
+    		if (m_csFromNdnSim == nullptr) {
+      			m_cs.find(interest,
+                		bind(&Forwarder::onContentStoreHit, this, ref(inFace), pitEntry, _1, _2),
+                		bind(&Forwarder::onContentStoreMiss, this, ref(inFace), pitEntry, _1));
+    		}
+    		else {
+      			shared_ptr<Data> match = m_csFromNdnSim->Lookup(interest.shared_from_this());
+      			if (match != nullptr) {
+        			this->onContentStoreHit(inFace, pitEntry, interest, *match);
+      			}
+      			else {
+        			this->onContentStoreMiss(inFace, pitEntry, interest);
+      			}
+    		}
+  	}
+  	else {
+    		this->onContentStoreMiss(inFace, pitEntry, interest);
+  	}
+
+  }
+  else { //handle fowarding logic for subscription interests using SIT
+
+	// SIT insert
+
+	std::pair<shared_ptr<pit::Entry>, bool> sitPair = m_sit.insert(interest);
+
+        shared_ptr<pit::Entry> pitEntry = sitPair.first;
+	bool isNewEntry = sitPair.second; //used to handle soft and hard subscriptions
+
+         // detect duplicate Nonce in PIT entry
+        bool hasDuplicateNonceInSit = fw::findDuplicateNonce(*pitEntry, interest.getNonce(), inFace) !=
+                                fw::DUPLICATE_NONCE_NONE;
+        if (hasDuplicateNonceInSit) {
+                // goto Interest loop pipeline
+                this->onInterestLoop(inFace, interest);
+                return;
+        }
+
+        // cancel unsatisfy & straggler timer
+        this->cancelUnsatisfyAndStragglerTimer(*pitEntry);
+
+        // is pending?
+        const pit::InRecordCollection& inRecords = pitEntry->getInRecords();
+        bool isPending = inRecords.begin() != inRecords.end();
+        if (!isPending) {
+                if (m_csFromNdnSim == nullptr) {
+                        m_cs.find(interest,
+                                bind(&Forwarder::onSitContentStoreHit, this, ref(inFace), pitEntry, _1, _2),
+                                bind(&Forwarder::onSitContentStoreMiss, this, ref(inFace), pitEntry, _1, isNewEntry)
+                        );
+                }
+                else {
+                        shared_ptr<Data> match = m_csFromNdnSim->Lookup(interest.shared_from_this());
+                        if (match != nullptr) {
+                                this->onSitContentStoreHit(inFace, pitEntry, interest, *match);
+                        }
+                        else {
+                                this->onSitContentStoreMiss(inFace, pitEntry, interest, isNewEntry);
+                        }
+                }
+        }
+        else {
+                this->onSitContentStoreMiss(inFace, pitEntry, interest, isNewEntry);
+        }
+
   }
 
-  // cancel unsatisfy & straggler timer
-  this->cancelUnsatisfyAndStragglerTimer(*pitEntry);
-
-  const pit::InRecordCollection& inRecords = pitEntry->getInRecords();
-  bool isPending = inRecords.begin() != inRecords.end();
-  if (!isPending) {
-    if (m_csFromNdnSim == nullptr) {
-      m_cs.find(interest,
-                bind(&Forwarder::onContentStoreHit, this, ref(inFace), pitEntry, _1, _2),
-                bind(&Forwarder::onContentStoreMiss, this, ref(inFace), pitEntry, _1));
-    }
-    else {
-      shared_ptr<Data> match = m_csFromNdnSim->Lookup(interest.shared_from_this());
-      if (match != nullptr) {
-        this->onContentStoreHit(inFace, pitEntry, interest, *match);
-      }
-      else {
-        this->onContentStoreMiss(inFace, pitEntry, interest);
-      }
-    }
-  }
-  else {
-    this->onContentStoreMiss(inFace, pitEntry, interest);
-  }
 }
 
 void
@@ -254,6 +307,97 @@ Forwarder::onContentStoreHit(const Face& inFace, const shared_ptr<pit::Entry>& p
   this->onOutgoingData(data, *const_pointer_cast<Face>(inFace.shared_from_this()));
 }
 
+
+void
+Forwarder::onSitContentStoreMiss(const Face& inFace,
+                              shared_ptr<pit::Entry> pitEntry,
+                              const Interest& interest,
+			      bool isNewEntry)
+{
+  NFD_LOG_DEBUG("onSitContentStoreMiss interest=" << interest.getName());
+
+  // insert InRecord
+  pitEntry->insertOrUpdateInRecord(const_cast<Face&>(inFace), interest);
+
+  // set SIT unsatisfy timer
+  this->setUnsatisfyTimer(pitEntry);
+
+  if (interest.getSubscription() == 1) {
+ 	// Soft subscription
+
+	//Only forward upstream to producer if this is the first interest of its kind
+	if (isNewEntry == true) {
+
+		// has NextHopFaceId?
+  		shared_ptr<lp::NextHopFaceIdTag> nextHopTag = interest.getTag<lp::NextHopFaceIdTag>();
+  	   	if (nextHopTag != nullptr) {
+  		     // chosen NextHop face exists?
+  		     Face* nextHopFace = m_faceTable.get(*nextHopTag);
+  		     if (nextHopFace != nullptr) {
+  		       NFD_LOG_DEBUG("onSitContentStoreMiss interest=" << interest.getName() << " nexthop-faceid=" << nextHopFace->getId());
+  		       // go to outgoing Interest pipeline
+  		       // scope control is unnecessary, because privileged app explicitly wants to forward
+  		       this->onOutgoingInterest(pitEntry, *nextHopFace, interest);
+  		     }
+  		     return;
+  		}
+
+		// dispatch to strategy: after incoming Interest
+  		this->dispatchToStrategy(*pitEntry,
+  		     [&] (fw::Strategy& strategy) { strategy.afterReceiveInterest(inFace, interest, pitEntry); });
+	}
+
+  }
+  else {
+	// Hard subscription
+
+	// has NextHopFaceId?
+        shared_ptr<lp::NextHopFaceIdTag> nextHopTag = interest.getTag<lp::NextHopFaceIdTag>();
+        if (nextHopTag != nullptr) {
+               // chosen NextHop face exists?
+               Face* nextHopFace = m_faceTable.get(*nextHopTag);
+               if (nextHopFace != nullptr) {
+                 NFD_LOG_DEBUG("onSitContentStoreMiss interest=" << interest.getName() << " nexthop-faceid=" << nextHopFace->getId());
+                 // go to outgoing Interest pipeline
+                 // scope control is unnecessary, because privileged app explicitly wants to forward
+                 this->onOutgoingInterest(pitEntry, *nextHopFace, interest);
+               }
+               return;
+        }
+
+	// dispatch to strategy: after incoming Interest
+        this->dispatchToStrategy(*pitEntry,
+                [&] (fw::Strategy& strategy) { strategy.afterReceiveInterest(inFace, interest, pitEntry); });
+
+        // mark interest as forwarded
+        //---pitEntry->forwardInterest(std::shared_ptr<const Face>(&inFace));
+  }
+
+}
+
+void
+Forwarder::onSitContentStoreHit(const Face& inFace,
+                             shared_ptr<pit::Entry> pitEntry,
+                             const Interest& interest,
+                             const Data& data)
+{
+  NFD_LOG_DEBUG("onSitContentStoreHit interest=" << interest.getName());
+
+  beforeSatisfyInterest(*pitEntry, *m_csFace, data);
+  this->dispatchToStrategy(*pitEntry,
+       [&] (fw::Strategy& strategy) { strategy.beforeSatisfyInterest(pitEntry, *m_csFace, data); });
+
+  data.setTag(make_shared<lp::IncomingFaceIdTag>(face::FACEID_CONTENT_STORE));
+  // XXX should we lookup PIT for other Interests that also match csMatch?
+
+  // set PIT straggler timer
+  this->setStragglerTimer(pitEntry, true, data.getFreshnessPeriod());
+
+  // goto outgoing Data pipeline
+  this->onOutgoingData(data, *const_pointer_cast<Face>(inFace.shared_from_this()));
+
+}
+
 void
 Forwarder::onOutgoingInterest(const shared_ptr<pit::Entry>& pitEntry, Face& outFace, const Interest& interest)
 {
@@ -309,9 +453,11 @@ Forwarder::onInterestFinalize(const shared_ptr<pit::Entry>& pitEntry, bool isSat
   // Dead Nonce List insert if necessary
   this->insertDeadNonceList(*pitEntry, isSatisfied, dataFreshnessPeriod, 0);
 
-  // PIT delete
-  this->cancelUnsatisfyAndStragglerTimer(*pitEntry);
-  m_pit.erase(pitEntry.get());
+  // PIT delete; only if it is a normal interest, thus Subscription = 0
+  if (pitEntry->getInterest().getSubscription() == 0) {
+  	this->cancelUnsatisfyAndStragglerTimer(*pitEntry);
+  	m_pit.erase(pitEntry.get());
+  }
 }
 
 void
@@ -332,9 +478,10 @@ Forwarder::onIncomingData(Face& inFace, const Data& data)
     return;
   }
 
-  // PIT match
+  // PIT and SIT match
   pit::DataMatchResult pitMatches = m_pit.findAllDataMatches(data);
-  if (pitMatches.begin() == pitMatches.end()) {
+  pit::SitDataMatchResult sitMatches = m_sit.findAllDataMatches(data);
+  if (pitMatches.begin() == pitMatches.end() && sitMatches.begin() == sitMatches.end()) {
     // goto Data unsolicited pipeline
     this->onDataUnsolicited(inFace, data);
     return;
@@ -379,6 +526,38 @@ Forwarder::onIncomingData(Face& inFace, const Data& data)
 
     // set PIT straggler timer
     this->setStragglerTimer(pitEntry, true, data.getFreshnessPeriod());
+  }
+
+  // foreach SitEntry
+  auto nowSit = time::steady_clock::now();
+  for (const shared_ptr<pit::Entry>& pitEntry : sitMatches) {
+    NFD_LOG_DEBUG("onIncomingData matching=" << pitEntry->getName());
+
+    // cancel unsatisfy & straggler timer
+    this->cancelUnsatisfyAndStragglerTimer(*pitEntry);
+
+    // remember pending downstreams
+    for (const pit::InRecord& inRecord : pitEntry->getInRecords()) {
+      if (inRecord.getExpiry() > nowSit) {
+        pendingDownstreams.insert(&inRecord.getFace());
+      }
+    }
+
+    // invoke PIT satisfy callback
+    beforeSatisfyInterest(*pitEntry, inFace, data);
+    this->dispatchToStrategy(*pitEntry,
+      [&] (fw::Strategy& strategy) { strategy.beforeSatisfyInterest(pitEntry, inFace, data); });
+
+    // Dead Nonce List insert if necessary (for out-record of inFace)
+    this->insertDeadNonceList(*pitEntry, true, data.getFreshnessPeriod(), &inFace);
+
+    // mark SIT satisfied
+    //pitEntry->clearInRecords();
+    //pitEntry->deleteOutRecord(inFace);
+
+    // set PIT straggler timer
+    this->setStragglerTimer(pitEntry, true, data.getFreshnessPeriod());
+
   }
 
   // foreach pending downstream
@@ -441,7 +620,7 @@ Forwarder::onIncomingNack(Face& inFace, const lp::Nack& nack)
   // receive Nack
   nack.setTag(make_shared<lp::IncomingFaceIdTag>(inFace.getId()));
   ++m_counters.nInNacks;
-std::cout << "NACK received in forwarder, onIncomingNack" << std::endl;
+
   // if multi-access face, drop
   if (inFace.getLinkType() == ndn::nfd::LINK_TYPE_MULTI_ACCESS) {
     NFD_LOG_DEBUG("onIncomingNack face=" << inFace.getId() <<

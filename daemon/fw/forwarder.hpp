@@ -33,6 +33,7 @@
 #include "unsolicited-data-policy.hpp"
 #include "table/fib.hpp"
 #include "table/pit.hpp"
+#include "table/sit.hpp"
 #include "table/cs.hpp"
 #include "table/measurements.hpp"
 #include "table/strategy-choice.hpp"
@@ -215,6 +216,16 @@ PUBLIC_WITH_TESTS_ELSE_PRIVATE: // pipelines
   onContentStoreHit(const Face& inFace, const shared_ptr<pit::Entry>& pitEntry,
                     const Interest& interest, const Data& data);
 
+  /** \brief Content Store miss pipeline for subscription interests
+  */
+  VIRTUAL_WITH_TESTS void
+  onSitContentStoreMiss(const Face& inFace, shared_ptr<pit::Entry> pitEntry, const Interest& interest, bool isNewEntry);
+
+  /** \brief Content Store hit pipeline for subscription interests
+  */
+  VIRTUAL_WITH_TESTS void
+  onSitContentStoreHit(const Face& inFace, shared_ptr<pit::Entry> pitEntry, const Interest& interest, const Data& data);
+
   /** \brief outgoing Interest pipeline
    */
   VIRTUAL_WITH_TESTS void
@@ -305,6 +316,7 @@ private:
   NameTree           m_nameTree;
   Fib                m_fib;
   Pit                m_pit;
+  Sit                m_sit;
   Cs                 m_cs;
   Measurements       m_measurements;
   StrategyChoice     m_strategyChoice;

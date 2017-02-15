@@ -35,6 +35,10 @@ Entry::Entry(const Interest& interest)
 {
 }
 
+Entry::~Entry()
+{
+}
+
 bool
 Entry::canMatch(const Interest& interest, size_t nEqualNameComps) const
 {

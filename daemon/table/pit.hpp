@@ -49,6 +49,8 @@ public:
   explicit
   Pit(NameTree& nameTree);
 
+  ~Pit();
+
   /** \return number of entries
    */
   size_t
@@ -132,7 +134,7 @@ private:
   std::pair<shared_ptr<Entry>, bool>
   findOrInsert(const Interest& interest, bool allowInsert);
 
-private:
+protected:
   NameTree& m_nameTree;
   size_t m_nItems;
 };

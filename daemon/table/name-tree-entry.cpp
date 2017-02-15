@@ -110,6 +110,31 @@ Entry::erasePitEntry(pit::Entry* pitEntry)
 }
 
 void
+Entry::insertSitEntry(shared_ptr<pit::SitEntry> pitEntry)
+{
+  BOOST_ASSERT(pitEntry != nullptr);
+  BOOST_ASSERT(pitEntry->m_nameTreeEntry == nullptr);
+
+  m_sitEntries.push_back(pitEntry);
+  pitEntry->m_nameTreeEntry = this;
+}
+
+void
+Entry::eraseSitEntry(pit::SitEntry* pitEntry)
+{
+  BOOST_ASSERT(pitEntry != nullptr);
+  BOOST_ASSERT(pitEntry->m_nameTreeEntry == this);
+
+  auto it = std::find_if(m_sitEntries.begin(), m_sitEntries.end(),
+    [pitEntry] (const shared_ptr<pit::SitEntry>& pitEntry2) { return pitEntry2.get() == pitEntry; });
+  BOOST_ASSERT(it != m_sitEntries.end());
+
+  pitEntry->m_nameTreeEntry = nullptr; // must be done before sitEntry is deallocated
+  *it = m_sitEntries.back(); // may deallocate sitEntry
+  m_sitEntries.pop_back();
+}
+
+void
 Entry::setMeasurementsEntry(unique_ptr<measurements::Entry> measurementsEntry)
 {
   BOOST_ASSERT(measurementsEntry == nullptr || measurementsEntry->m_nameTreeEntry == nullptr);

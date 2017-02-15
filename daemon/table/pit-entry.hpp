@@ -60,6 +60,8 @@ public:
   explicit
   Entry(const Interest& interest);
 
+  ~Entry();
+
   /** \return the representative Interest of the PIT entry
    *  \note Every Interest in in-records and out-records should have same Name and Selectors
    *        as the representative Interest.
@@ -236,7 +238,7 @@ public:
    */
   scheduler::EventId m_stragglerTimer;
 
-private:
+protected:
   shared_ptr<const Interest> m_interest;
   InRecordCollection m_inRecords;
   OutRecordCollection m_outRecords;
