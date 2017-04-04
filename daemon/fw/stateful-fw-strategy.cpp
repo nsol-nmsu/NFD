@@ -316,6 +316,7 @@ StatefulForwardingStrategy::afterReceiveNack(const Face& inFace, const lp::Nack&
                 " nack-to=all out-nack=" << outNack.getReason());
 
   //Resend interest upstream instead of sending NACK downstream
+
   //Face& nackFace = const_cast<Face&>(inFace);
 
   // find an unused upstream with lowest cost except downstream
