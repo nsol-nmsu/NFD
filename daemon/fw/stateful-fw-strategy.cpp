@@ -316,10 +316,36 @@ StatefulForwardingStrategy::afterReceiveNack(const Face& inFace, const lp::Nack&
                 " nack-to=all out-nack=" << outNack.getReason());
 
   //Resend interest upstream instead of sending NACK downstream
-  Face& rtxFace = const_cast<Face&>(inFace);
-  this->sendInterest(pitEntry, rtxFace, nack.getInterest());
+  //Face& nackFace = const_cast<Face&>(inFace);
+
+  // find an unused upstream with lowest cost except downstream
+  const fib::Entry& fibEntry = this->lookupFib(*pitEntry);
+  const fib::NextHopList& nexthops = fibEntry.getNextHops();
+  fib::NextHopList::const_iterator it = nexthops.end();
+
+  it = std::find_if(nexthops.begin(), nexthops.end(),
+                    bind(&isNextHopEligible, cref(inFace), nack.getInterest(), _1, pitEntry,
+                         true, time::steady_clock::now()));
+
+  if (it != nexthops.end()) {
+	//Retranmit on an un-used interface
+    	Face& rtxFace = it->getFace();
+    	this->sendInterest(pitEntry, rtxFace, nack.getInterest());
+  }
+  else {
+  	// find an eligible upstream that is used earliest, switches between on outgoing interfaces until one works
+  	it = findEligibleNextHopWithEarliestOutRecord(inFace, nack.getInterest(), nexthops, pitEntry);
+  	if (it == nexthops.end()) {
+    		NFD_LOG_DEBUG(nack.getInterest() << " from=" << inFace.getId() << " retransmitNoNextHop");
+  	}
+	else {
+    		Face& lowestCostFace = it->getFace();
+		this->sendInterest(pitEntry, lowestCostFace, nack.getInterest());
+  	}
+  }
 
 //  this->sendNacks(pitEntry, outNack);
+
 }
 
 } // namespace fw
