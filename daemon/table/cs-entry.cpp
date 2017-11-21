@@ -33,7 +33,7 @@ Entry::setData(shared_ptr<const Data> data, bool isUnsolicited)
 {
   m_data = data;
   m_isUnsolicited = isUnsolicited;
-
+std::cout << "Before stale time " << m_data.use_count() << std::endl;
   updateStaleTime();
 }
 
@@ -74,9 +74,13 @@ Entry::canSatisfy(const Interest& interest) const
 void
 Entry::reset()
 {
+std::cout << "CS entry reset " << m_data->getName() << " use count " << m_data.use_count() << " unique " << m_data.unique() << std::endl; 
   m_data.reset();
   m_isUnsolicited = false;
   m_staleTime = time::steady_clock::TimePoint();
+
+//std::cout << "use_counter after " << m_data.use_count() << std::endl;
+
 }
 
 } // namespace cs

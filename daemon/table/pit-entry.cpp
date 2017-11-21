@@ -39,6 +39,13 @@ Entry::~Entry()
 {
 }
 
+void
+Entry::FreePitMemory()
+{
+//std::cout << "Data delivered, Interest satisfied " << m_interest.use_count() << std::endl;
+	m_interest.reset();
+}
+
 bool
 Entry::canMatch(const Interest& interest, size_t nEqualNameComps) const
 {

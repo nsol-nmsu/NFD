@@ -66,6 +66,9 @@ public:
     return m_counters;
   }
 
+void
+DanFree();
+
 public: // faces and policies
   FaceTable&
   getFaceTable()
@@ -127,7 +130,7 @@ public: // forwarding entrypoints and tables
    */
   void
   startProcessNack(Face& face, const lp::Nack& nack);
-
+  
   NameTree&
   getNameTree()
   {
@@ -307,6 +310,10 @@ PROTECTED_WITH_TESTS_ELSE_PRIVATE:
     trigger(m_strategyChoice.findEffectiveStrategy(pitEntry));
   }
 
+protected:
+  //const shared_ptr<Data> m_dataptr;
+  shared_ptr<const Data> m_dataptr;
+
 private:
   ForwarderCounters m_counters;
 
@@ -328,6 +335,7 @@ private:
 
   // allow Strategy (base class) to enter pipelines
   friend class fw::Strategy;
+
 };
 
 } // namespace nfd

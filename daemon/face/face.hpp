@@ -216,7 +216,15 @@ Face::sendInterest(const Interest& interest)
 inline void
 Face::sendData(const Data& data)
 {
+
+//shared_ptr<Data> dataptr = const_pointer_cast<Data>(data.shared_from_this());
+//std::cout << "in Face " << data.getName() << " use count= " << dataptr.use_count() << " unique " << dataptr.unique() << std::endl;
+
   m_service->sendData(data);
+
+//dataptr.reset();
+//std::cout << " usecount after= " << dataptr.use_count() << " unique " << dataptr.unique() << std::endl;
+
 }
 
 inline void

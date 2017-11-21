@@ -62,6 +62,9 @@ public:
 
   ~Entry();
 
+  void
+  FreePitMemory();
+
   /** \return the representative Interest of the PIT entry
    *  \note Every Interest in in-records and out-records should have same Name and Selectors
    *        as the representative Interest.

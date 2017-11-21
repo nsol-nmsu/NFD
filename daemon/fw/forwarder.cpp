@@ -149,8 +149,8 @@ Forwarder::onIncomingInterest(Face& inFace, const Interest& interest)
 
   	// PIT insert
   	shared_ptr<pit::Entry> pitEntry = m_pit.insert(interest).first;
-
-  	// detect duplicate Nonce in PIT entry
+  	
+	// detect duplicate Nonce in PIT entry
   	bool hasDuplicateNonceInPit = fw::findDuplicateNonce(*pitEntry, interest.getNonce(), inFace) !=
                                 fw::DUPLICATE_NONCE_NONE;
   	if (hasDuplicateNonceInPit) {
@@ -457,12 +457,36 @@ Forwarder::onInterestFinalize(const shared_ptr<pit::Entry>& pitEntry, bool isSat
   if (pitEntry->getInterest().getSubscription() == 0) {
   	this->cancelUnsatisfyAndStragglerTimer(*pitEntry);
   	m_pit.erase(pitEntry.get());
+	
+	//Free memory used by interest
+	pitEntry->FreePitMemory();
+
   }
+
+//std::cout << "Interest finalize" << std::endl;
+//m_cs.FreeData();
+
+//Free data memory
+//this->DanFree();
+
+//m_dataptr.reset();
+//std::cout << "Delete data now " << m_dataptr->getName() << " use_count " << m_dataptr.use_count() << " unique " << m_dataptr.unique() << std::endl;
+
+}
+
+void
+Forwarder::DanFree()
+{
+//m_dataptr.reset();
+//std::cout << /*"Delete data now " << m_dataptr->getName() <<*/ " use_count " << m_dataptr.use_count() << " unique " << m_dataptr.unique() << std::endl;
 }
 
 void
 Forwarder::onIncomingData(Face& inFace, const Data& data)
 {
+
+//std::cout << "FWD onincomingdata use count " << data.shared_from_this().use_count() << std::endl;
+
   // receive Data
   NFD_LOG_DEBUG("onIncomingData face=" << inFace.getId() << " data=" << data.getName());
   data.setTag(make_shared<lp::IncomingFaceIdTag>(inFace.getId()));
@@ -487,14 +511,16 @@ Forwarder::onIncomingData(Face& inFace, const Data& data)
     return;
   }
 
+/*
   shared_ptr<Data> dataCopyWithoutTag = make_shared<Data>(data);
   dataCopyWithoutTag->removeTag<lp::HopCountTag>();
 
-  // CS insert
+ // CS insert
   if (m_csFromNdnSim == nullptr)
     m_cs.insert(*dataCopyWithoutTag);
   else
     m_csFromNdnSim->Add(dataCopyWithoutTag);
+*/
 
   std::set<Face*> pendingDownstreams;
   // foreach PitEntry
@@ -568,6 +594,13 @@ Forwarder::onIncomingData(Face& inFace, const Data& data)
     // goto outgoing Data pipeline
     this->onOutgoingData(data, *pendingDownstream);
   }
+
+//get a pointer to memory location of Data
+//std::cout << "Get data ptr" << std::endl;
+
+//m_dataptr = const_pointer_cast<Data>(data.shared_from_this());
+//m_dataptr = data.shared_from_this();
+
 }
 
 void
@@ -591,6 +624,7 @@ Forwarder::onDataUnsolicited(Face& inFace, const Data& data)
 void
 Forwarder::onOutgoingData(const Data& data, Face& outFace)
 {
+
   if (outFace.getId() == face::INVALID_FACEID) {
     NFD_LOG_WARN("onOutgoingData face=invalid data=" << data.getName());
     return;
@@ -609,9 +643,23 @@ Forwarder::onOutgoingData(const Data& data, Face& outFace)
 
   // TODO traffic manager
 
+//shared_ptr<Data> kkk = const_pointer_cast<Data>(data.shared_from_this());
+//std::cout << "SENDing DATA " << data.getName() << " count= " << kkk.use_count() << /* " get content= " << data.getContent().value() << */ std::endl;
+
   // send Data
   outFace.sendData(data);
   ++m_counters.nOutData;
+
+
+//std::cout << "Outgoing data pipileine" << data.getName() << " use count " << data.shared_from_this().use_count() << std::endl;
+
+
+//std::cout << "Pointer " << data2->getName() << " use count " << data2.use_count() << std::endl;
+
+//m_dataptr = data.shared_from_this();
+//m_dataptr = const_pointer_cast<Data>(data.shared_from_this());
+//std::cout << "global " << m_dataptr.use_count() << std::endl;
+
 }
 
 void

@@ -75,6 +75,10 @@ LinkService::sendData(const Data& data)
   doSendData(data);
 
   afterSendData(data);
+
+//data.shared_from_this().reset();
+
+//std::cout << "after send data " << data.getName()  << " use count " << data.shared_from_this().use_count() << std::endl;
 }
 
 void
@@ -103,11 +107,17 @@ LinkService::receiveInterest(const Interest& interest)
 void
 LinkService::receiveData(const Data& data)
 {
+
+
   NFD_LOG_FACE_TRACE(__func__);
 
   ++this->nInData;
 
   afterReceiveData(data);
+
+
+//data.shared_from_this().reset();
+//std::cout << "LINK service after receive data " << data.getName()  << " use count " << data.shared_from_this().use_count() << std::endl;
 }
 
 void
